@@ -15,6 +15,7 @@ enum MathOperation
     POW,
     EXP,
     TANH,
+    RELU,
 };
 
 struct ValueHandle
@@ -51,16 +52,13 @@ ValueHandle create_value(float data, MathOperation op = MathOperation::NONE)
         return ValueHandle{ .idx = -1 };
     }
 
-    g_value_pool.values[g_value_pool.value_count].data = 0.f;
-    g_value_pool.values[g_value_pool.value_count].gradient = 0.f;
-    g_value_pool.values[g_value_pool.value_count].exponent = 0.f;
-    g_value_pool.values[g_value_pool.value_count].op = MathOperation::NONE;
-    g_value_pool.values[g_value_pool.value_count].input.clear();
+    Value& value = g_value_pool.values[g_value_pool.value_count];
+    value.data = data;
+    value.op = op;
+    value.gradient = 0.f;
+    value.exponent = 0.f;
+    value.input.clear();
 
-    g_value_pool.values[g_value_pool.value_count] = {
-        .data = data,
-        .op = op
-    };
     g_value_pool.value_count++;
 
     return ValueHandle{ .idx = g_value_pool.value_count - 1 };
@@ -167,6 +165,13 @@ void calc_gradient(ValueHandle hout)
             assert(out->input.size() == 1);
             Value* a = get_value(out->input[0]);
             a->gradient += (1.f - powf(out->data, 2)) * out->gradient;
+        }
+        break;
+    case MathOperation::RELU:
+        {
+            assert(out->input.size() == 1);
+            Value* a = get_value(out->input[0]);
+            a->gradient += (a->data < 0 ? 0 : 1) * out->gradient;
         }
         break;
     default:
@@ -291,6 +296,16 @@ ValueHandle tanh(ValueHandle ha)
 {
     Value* a = get_value(ha);
     ValueHandle ho = create_value(tanhf(a->data), MathOperation::TANH);
+    Value* out = get_value(ho);
+    out->input.push_back(ha);
+    return ho;
+}
+
+ValueHandle relu(ValueHandle ha)
+{
+    Value* a = get_value(ha);
+    float data = a->data < 0 ? 0 : a->data;
+    ValueHandle ho = create_value(data, MathOperation::RELU);
     Value* out = get_value(ho);
     out->input.push_back(ha);
     return ho;
