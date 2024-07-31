@@ -3,6 +3,8 @@ This is my attempt to write a tiny autograd engine in C++ following Andrej Karpa
 
 The code is a little messy, could be improve. There are still some features and examples that need to be added compared to [karpathy's micrograd](https://github.com/karpathy/micrograd).
 
+![engine_test_2.svg](engine_test_2.svg)
+
 ## build
 ```
 nmake
