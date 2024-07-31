@@ -1,6 +1,143 @@
 #include "engine.h"
 #include "nn.h"
 
+#include <stdio.h>
+
+#include <graphviz/gvc.h>
+
+void draw_dot(ValueHandle root, char graph_name[32])
+{
+    GVC_t* gvc = gvContext();
+    Agraph_t* graph = agopen(graph_name, Agdirected, NULL);
+
+    char randir_attr[8] = "rankdir";
+    agattr(graph, AGRAPH, randir_attr, "LR");
+
+    char shape_attr[6] = "shape";
+    Agsym_t* node_shape_sym = agattr(graph, AGNODE, shape_attr, "record");
+    assert(node_shape_sym != NULL);
+
+    char label_attr[6] = "label";
+    std::vector<ValueHandle> bfs;
+    std::unordered_set<int> visited;
+    bfs.push_back(root);
+    while(bfs.size() > 0)
+    {
+        ValueHandle h = bfs.back();
+        bfs.pop_back();
+        if (visited.contains(h.idx)) continue;
+        Value* value = get_value(h);
+
+        char node_name[8];
+        sprintf(node_name, "%d", h.idx);
+        Agnode_t* node = agnode(graph, node_name, true);
+
+        char label[32];
+        sprintf(label, "{ %d | data %f }", h.idx, value->data);
+        agset(node, label_attr, label);
+
+        Agnode_t* op_node = NULL;
+        switch(value->op)
+        {
+        case MathOperation::ADD:
+            {
+                char op_node_name[16];
+                sprintf(op_node_name, "%d_OP_ADD", h.idx);
+                op_node = agnode(graph, op_node_name, true);
+                agset(op_node, label_attr, "+");
+                agxset(op_node, node_shape_sym, "ellipse");
+            }
+            break;
+        case MathOperation::MULTIPLE:
+            {
+                char op_node_name[16];
+                sprintf(op_node_name, "%d_OP_MUL", h.idx);
+                op_node = agnode(graph, op_node_name, true);
+                agset(op_node, label_attr, "*");
+                agxset(op_node, node_shape_sym, "ellipse");
+            }
+            break;
+        case MathOperation::POW:
+            {
+                char op_node_name[16];
+                sprintf(op_node_name, "%d_OP_POW", h.idx);
+                op_node = agnode(graph, op_node_name, true);
+                sprintf(label, "** %f", value->exponent);
+                agset(op_node, label_attr, label);
+                agxset(op_node, node_shape_sym, "ellipse");
+            }
+            break;
+        case MathOperation::EXP:
+            {
+                char op_node_name[16];
+                sprintf(op_node_name, "%d_OP_EXP", h.idx);
+                op_node = agnode(graph, op_node_name, true);
+                agset(op_node, label_attr, "exp");
+                agxset(op_node, node_shape_sym, "ellipse");
+            }
+            break;
+        case MathOperation::TANH:
+            {
+                char op_node_name[16];
+                sprintf(op_node_name, "%d_OP_TANH", h.idx);
+                op_node = agnode(graph, op_node_name, true);
+                agset(op_node, label_attr, "tanh");
+                agxset(op_node, node_shape_sym, "ellipse");
+            }
+            break;
+        case MathOperation::RELU:
+            {
+                char op_node_name[16];
+                sprintf(op_node_name, "%d_OP_RELU", h.idx);
+                op_node = agnode(graph, op_node_name, true);
+                agset(op_node, label_attr, "relu");
+                agxset(op_node, node_shape_sym, "ellipse");
+            }
+            break;
+        default:
+            break;
+        }
+
+        if (op_node != NULL)
+        {
+            agedge(graph, op_node, node, NULL, 1);
+        }
+
+        for (int i = 0; i < value->input.size(); i++)
+        {
+            assert(op_node != NULL);
+
+            ValueHandle ch = value->input[i];
+            Value* child_value = get_value(ch);
+
+            char child_node_name[8];
+            sprintf(child_node_name, "%d", ch.idx);
+            Agnode_t* child_node = agnode(graph, child_node_name, true);
+
+            sprintf(label, "{ %d | data %f }", ch.idx, child_value->data);
+            agset(child_node, label_attr, label);
+
+            agedge(graph, child_node, op_node, NULL, 1);
+
+            bfs.push_back(ch);
+        }
+
+        visited.insert(h.idx);
+    }
+
+    gvLayout(gvc, graph, "dot");
+    //agwrite(graph, stdout);
+    char filename[64];
+    sprintf(filename, "./%s.svg", graph_name);
+    gvRenderFilename(gvc, graph, "svg", filename);
+
+    gvFreeLayout(gvc, graph);
+
+    agclose(graph);
+
+    gvFreeContext(gvc);
+}
+
 void engine_test_1()
 {
     TEMP_VALUE_POOL_START;
@@ -26,6 +163,9 @@ void engine_test_1()
     fprintf(stdout, "%s, data: %f, gradient: %f\n", "f", get_value(f)->data, get_value(f)->gradient);
     fprintf(stdout, "%s, data: %f, gradient: %f\n", "g", get_value(g)->data, get_value(g)->gradient);
     fprintf(stdout, "%s, data: %f, gradient: %f\n", "h", get_value(h)->data, get_value(h)->gradient);
+
+    char graph_name[32] = "engine_test_1";
+    draw_dot(h, graph_name);
 
     TEMP_VALUE_POOL_END;
 }
@@ -62,6 +202,9 @@ void engine_test_2()
     fprintf(stdout, "%s, data: %f, gradient: %f\n", "e", get_value(e)->data, get_value(e)->gradient);
     fprintf(stdout, "%s, data: %f, gradient: %f\n", "o", get_value(o)->data, get_value(o)->gradient);
 
+    char graph_name[32] = "engine_test_2";
+    draw_dot(o, graph_name);
+
     TEMP_VALUE_POOL_END;
 }
 
@@ -94,6 +237,9 @@ void engine_test_3()
     fprintf(stdout, "%s, data: %f, gradient: %f\n", "x1w1x2w2", get_value(x1w1x2w2)->data, get_value(x1w1x2w2)->gradient);
     fprintf(stdout, "%s, data: %f, gradient: %f\n", "n", get_value(n)->data, get_value(n)->gradient);
     fprintf(stdout, "%s, data: %f, gradient: %f\n", "o", get_value(o)->data, get_value(o)->gradient);
+
+    char graph_name[32] = "engine_test_3";
+    draw_dot(o, graph_name);
 
     TEMP_VALUE_POOL_END;
 }
@@ -166,6 +312,10 @@ void mlp_test()
 
         mlp_zero_grad(mlp);
         mlp_backward(mlp, loss, 0.05f);
+
+        char graph_name[32];
+        sprintf(graph_name, "./mlp_test_%d", g);
+        draw_dot(loss, graph_name);
 
         TEMP_VALUE_POOL_END;
     }

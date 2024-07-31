@@ -3,19 +3,18 @@ This is my attempt to write a tiny autograd engine in C++ following Andrej Karpa
 
 The code is a little messy, could be improve. There are still some features and examples that need to be added compared to [karpathy's micrograd](https://github.com/karpathy/micrograd).
 
-Also I haven't implemented the visualization for expression graphs.
-
 ## build
 ```
-cl /std:c++20 /EHsc /Zi .\src\main.cc /link /DEBUG:FULL /OUT:test.exe
+nmake
 ```
 
 ## run
 ```
-.\test.exe
+$env:PATH += ";.\Graphviz-12.0.0-win64\bin"
+.\demo.exe
 ```
 
 ## debug
 ```
-devenv /DebugExe .\test.exe
+devenv /DebugExe demo.exe
 ```
